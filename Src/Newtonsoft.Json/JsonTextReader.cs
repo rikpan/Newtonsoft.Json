@@ -2030,12 +2030,14 @@ namespace Newtonsoft.Json
                         numberValue = number;
                     }
                     break;
+                case ReadType.Read:
                 case ReadType.ReadAsInt32:
                     {
                         if (singleDigit)
                         {
                             // digit char values start at 48
                             numberValue = BoxedPrimitives.Get(firstChar - 48);
+                            numberType = JsonToken.Integer;
                         }
                         else if (nonBase10)
                         {
@@ -2051,6 +2053,7 @@ namespace Newtonsoft.Json
                             {
                                 throw ThrowReaderError("Input string '{0}' is not a valid integer.".FormatWith(CultureInfo.InvariantCulture, number), ex);
                             }
+                            numberType = JsonToken.Integer;
                         }
                         else
                         {
@@ -2058,18 +2061,45 @@ namespace Newtonsoft.Json
                             if (parseResult == ParseResult.Success)
                             {
                                 numberValue = BoxedPrimitives.Get(value);
+                                numberType = JsonToken.Integer;
                             }
                             else if (parseResult == ParseResult.Overflow)
                             {
-                                throw ThrowReaderError("JSON integer {0} is too large or small for an Int32.".FormatWith(CultureInfo.InvariantCulture, _stringReference.ToString()));
+                                // throw ThrowReaderError("JSON integer {0} is too large or small for an Int32.".FormatWith(CultureInfo.InvariantCulture, _stringReference.ToString()));
+                                goto case ReadType.ReadAsInt64;
                             }
                             else
                             {
-                                throw ThrowReaderError("Input string '{0}' is not a valid integer.".FormatWith(CultureInfo.InvariantCulture, _stringReference.ToString()));
+                                // 这段从case ReadType.ReadAsInt64拷贝过来的
+                                if (_floatParseHandling == FloatParseHandling.Decimal)
+                                {
+                                    parseResult = ConvertUtils.DecimalTryParse(_stringReference.Chars, _stringReference.StartIndex, _stringReference.Length, out decimal d);
+                                    if (parseResult == ParseResult.Success)
+                                    {
+                                        numberValue = BoxedPrimitives.Get(d);
+                                    }
+                                    else
+                                    {
+                                        throw ThrowReaderError("Input string '{0}' is not a valid decimal.".FormatWith(CultureInfo.InvariantCulture, _stringReference.ToString()));
+                                    }
+                                }
+                                else
+                                {
+                                    string number = _stringReference.ToString();
+
+                                    if (double.TryParse(number, NumberStyles.Float, CultureInfo.InvariantCulture, out double d))
+                                    {
+                                        numberValue = BoxedPrimitives.Get(d);
+                                    }
+                                    else
+                                    {
+                                        throw ThrowReaderError("Input string '{0}' is not a valid number.".FormatWith(CultureInfo.InvariantCulture, _stringReference.ToString()));
+                                    }
+                                }
+
+                                numberType = JsonToken.Float;
                             }
                         }
-
-                        numberType = JsonToken.Integer;
                     }
                     break;
                 case ReadType.ReadAsDecimal:
@@ -2151,7 +2181,6 @@ namespace Newtonsoft.Json
                         numberType = JsonToken.Float;
                     }
                     break;
-                case ReadType.Read:
                 case ReadType.ReadAsInt64:
                     {
                         if (singleDigit)
